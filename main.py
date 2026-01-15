@@ -2,11 +2,30 @@ import pygame
 import sys
 import os
 import random
+import time
+from grid import Grid
+
+start = time.time()
+
+
+pygame.display.init()
+print("Pygame.display initialized")
+print(f"Runtime: {time.time() - start} seconds")
+
+pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, allowedchanges=pygame.AUDIO_ALLOW_ANY_CHANGE)
+pygame.mixer.init()
+print("Pygame.mixer initialized")
+print(f"Runtime: {time.time() - start} seconds")
+
+# Encountered issue with joystick module not initializing with certain devices. Unplugging and replugging usb devices fixed it. (Pygame module issue, beyond me)
+pygame.joystick.init()
+print("Pygame.joystick initialized")
+print(f"Runtime: {time.time() - start} seconds")
 
 WIDTH, HEIGHT = 768, 704
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+
 pygame.display.set_caption("Tetris")
-pygame.init()
 
 GRID_WIDTH = 10
 GRID_HEIGHT = 20
@@ -30,15 +49,6 @@ SHAPES = {
           [1, 1, 1]]
 }
 
-COLORS = {
-    'I': (0, 255, 255), # Cyan
-    'O': (255, 255, 0), # Yellow
-    'T': (128, 0, 128), # Purple
-    'S': (0, 255, 0), # Green
-    'Z': (255, 0, 0), # Red
-    'J': (0, 0, 255), # Blue
-    'L': (255, 165, 0) # Orange
-}
 
 # Load and scale block images
 BLOCK = 32
@@ -47,17 +57,17 @@ block_colors = ['Blue', 'LightBlue', 'Green', 'Orange', 'Purple', 'Red', 'Yellow
 blocks = {}
 
 for color in block_colors:
-    img = pygame.image.load(os.path.join("Assets", "Single Blocks", f"{color}.png"))
-    blocks[color.lower()] = pygame.transform.scale(img, (BLOCK, BLOCK))
+   img = pygame.image.load(os.path.join("Assets", "Single Blocks", f"{color}.png"))
+   blocks[color.lower()] = pygame.transform.scale(img, (BLOCK, BLOCK))
 
 BLOCK_IMAGES = {
-    'I': blocks['lightblue'],
-    'O': blocks['yellow'],
-    'T': blocks['purple'],
-    'S': blocks['green'],
-    'Z': blocks['red'],
-    'J': blocks['blue'],
-    'L': blocks['orange']
+   'I': blocks['lightblue'],
+   'O': blocks['yellow'],
+   'T': blocks['purple'],
+   'S': blocks['green'],
+   'Z': blocks['red'],
+   'J': blocks['blue'],
+   'L': blocks['orange']
 }
 
 # Piece class to represent Tetris pieces
@@ -65,10 +75,10 @@ class Piece:
                 def __init__(self, shape_type):
                     self.shape_type = shape_type
                     self.shape = SHAPES[shape_type]
-                    self.color = COLORS[shape_type]
                     self.block_image = BLOCK_IMAGES[shape_type]
                     self.x = GRID_WIDTH // 2 - len(self.shape[0]) // 2
                     self.y = 0
+
 
 FPS = 60
 
@@ -76,18 +86,16 @@ FPS = 60
 board_image = pygame.image.load(os.path.join("Assets", "Board", "board.png"))
 game_board = pygame.transform.scale(board_image, (384, 704))
 
-# Initialize the grid, a 2D array filled with zeros
-grid = [[0 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
 
 def get_random_piece():
     shape_type = random.choice(list(SHAPES.keys()))
     return Piece(shape_type)
 
-def draw_grid():
+def draw_grid(grid):
      for row in range(GRID_HEIGHT):
           for col in range(GRID_WIDTH):
-               if grid[row][col] != 0:
-                    piece_type = grid[row][col]
+               if grid.get_cell(col, row) != 0:
+                    piece_type = grid.get_cell(col, row)
                     x = PLAY_AREA_X + col * BLOCK
                     y = PLAY_AREA_Y + row * BLOCK
                     WIN.blit(BLOCK_IMAGES[piece_type], (x, y))
@@ -96,7 +104,7 @@ def draw_window(current_piece, grid):
             WIN.fill((0, 0, 0))  # Fill the window with black
             WIN.blit(game_board, (192, 0))  # Draw the game board
 
-            draw_grid()  # Draw the locked pieces on the grid
+            draw_grid(grid)  # Draw the locked pieces on the grid
 
             # Draw the current piece
             for row in range(len(current_piece.shape)):
@@ -109,33 +117,34 @@ def draw_window(current_piece, grid):
             
             pygame.display.update()  # Update the display  
 
-# Check if the move is valid
-def valid_move(piece, grid, dx=0, dy=0):
-     # dx, dy are the changes we want to make (move left = dx=-1, etc) 
-     for row in range(len(piece.shape)):
-          for col in range(len(piece.shape[row])):
-               if piece.shape[row][col] == 1:
-                    new_x = piece.x + col + dx
-                    new_y = piece.y + row + dy
-                    if new_x < 0 or new_x >= GRID_WIDTH:
-                         return False
-                    if new_y >= GRID_HEIGHT:
-                         return False
-                    
-                    if new_y >= 0 and grid[new_y][new_x] != 0:
-                         return False
-                    
-     return True
 
-def lock_piece(piece, grid):
-     for row in range(len(piece.shape)):
-        for col in range(len(piece.shape[row])):
-             if piece.shape[row][col] == 1:
-                  grid_x = piece.x + col
-                  grid_y = piece.y + row
-                  grid[grid_y][grid_x] = piece.shape_type
+
+
+def try_rotation(piece, grid, rotated_shape):
+        old_shape = piece.shape
+        piece.shape = rotated_shape
+        
+        if grid.is_valid_move(piece):
+             return True
+        
+        kick_offsets = [(-1, 0), (1, 0), (-2, 0), (2, 0), (0, -1)]
+
+        for dx, dy in kick_offsets:
+             piece.x += dx
+             piece.y += dy
+             if grid.is_valid_move(piece):
+                  return True
+             
+             piece.x -= dx
+             piece.y -= dy
+
+        piece.shape = old_shape
+        return False
 
 def main():
+
+    # Initialize the grid, a 2D array filled with zeros
+    grid = Grid(GRID_WIDTH, GRID_HEIGHT)
 
     fall_time = 0
     fall_speed = 500 # milliseconds
@@ -150,9 +159,6 @@ def main():
     piece_queue = [get_random_piece() for _ in range(5)] # Pre-generate 5 pieces
     current_piece = piece_queue.pop(0) # Get the next piece
     piece_queue.append(get_random_piece()) # Add a new random piece to the queue
-    print(f"Piece type: {current_piece.shape_type}")
-    print(f"Position: ({current_piece.x}, {current_piece.y})")
-    print(f"Shape: {current_piece.shape}")
 
     def rotate_piece(piece, clockwise=True):
          old_shape = piece.shape
@@ -182,13 +188,13 @@ def main():
             # Handle initial key press
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_LEFT:
-                    if valid_move(current_piece, grid, dx=-1):
+                    if grid.is_valid_move(current_piece, dx=-1):
                         current_piece.x -= 1
                         last_key = pygame.K_LEFT
                         das_timer = 0
                         das_active = False
                 elif event.key == pygame.K_RIGHT:
-                    if valid_move(current_piece, grid, dx=1):
+                    if grid.is_valid_move(current_piece, dx=1):
                         current_piece.x += 1
                         last_key = pygame.K_RIGHT
                         das_timer = 0
@@ -196,26 +202,22 @@ def main():
 
                 elif event.key == pygame.K_SPACE:
                      # Hard drop
-                     while valid_move(current_piece, grid, dy=1):
+                     while grid.is_valid_move(current_piece, dy=1):
                           current_piece.y += 1
-                     lock_piece(current_piece, grid)
+                     grid.lock_piece(current_piece)
                      current_piece = piece_queue.pop(0)
                      piece_queue.append(get_random_piece())
 
                 elif event.key == pygame.K_UP:
                      # Rotate piece clockwise
                      rotated_shape = rotate_piece(current_piece, clockwise=True)
-                     old_shape = current_piece.shape
-                     current_piece.shape = rotated_shape
+                     try_rotation(current_piece, grid, rotated_shape)
                 
                 elif event.key == pygame.K_z:
                     # Rotate piece counter-clockwise
                     rotated_shape = rotate_piece(current_piece, clockwise=False)
-                    old_shape = current_piece.shape
-                    current_piece.shape = rotated_shape
+                    try_rotation(current_piece, grid, rotated_shape)
 
-                if not valid_move(current_piece, grid):
-                    current_piece.shape = old_shape  # Revert if invalid
                     
 
         current_fall_speed = fall_speed
@@ -224,10 +226,10 @@ def main():
             current_fall_speed = 50  # Faster fall speed when down key is held  
 
         if fall_time >= current_fall_speed:
-            if valid_move(current_piece, grid, dy=1):
+            if grid.is_valid_move(current_piece, dy=1):
                 current_piece.y += 1
             else:
-                lock_piece(current_piece, grid)
+                grid.lock_piece(current_piece)
 
                 current_piece = piece_queue.pop(0)
                 piece_queue.append(get_random_piece())
@@ -243,10 +245,10 @@ def main():
                     das_timer = 0
                 if das_active and das_timer >= das_repeat:
                     if last_key == pygame.K_LEFT:
-                        if valid_move(current_piece, grid, dx=-1):
+                        if grid.is_valid_move(current_piece, dx=-1):
                             current_piece.x -= 1
                     elif last_key == pygame.K_RIGHT:
-                        if valid_move(current_piece, grid, dx=1):
+                        if grid.is_valid_move(current_piece, dx=1):
                             current_piece.x += 1
                     das_timer = 0
             else:
