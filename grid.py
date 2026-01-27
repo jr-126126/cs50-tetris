@@ -33,20 +33,21 @@ class Grid:
                     grid_y = piece.y + row
                     self.grid[grid_y][grid_x] = piece.shape_type
 
-    def clear_lines(self):
-     lines_cleared = 0
-     row = self.height - 1 # Start on the bottom row
+    def get_full_rows(self):
+        full_rows = []
+        for row in range(self.height):
+            if all (self.grid[row][col] != 0 for col in range(self.width)):
+                full_rows.append(row)
+        return full_rows
 
-     while row >= 0:
-          if all(self.grid[row][col] != 0 for col in range(self.width)):
-               # row is full - clear line
-               del self.grid[row]
-               # add new row to top
-               self.grid.insert(0, [0 for _ in range(self.width)])
-               lines_cleared += 1
-          else:
-               row -= 1
-     return lines_cleared
-
+    def clear_rows(self, rows):
+        # remove rows from grid
+        self.grid = [self.grid[i] for i in range(self.height) if i not in rows]
+        # add new empty rows at the top
+        for _ in range(len(rows)):
+            self.grid.insert(0, [0 for _ in range (self.width)])
+        return len(rows)
+        
+    
     def get_cell(self, x, y):
         return self.grid[y][x]

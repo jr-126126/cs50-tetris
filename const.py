@@ -7,6 +7,8 @@ GRID_HEIGHT = 20
 PLAY_AREA_X = 224
 PLAY_AREA_Y = 32
 
+FLASH_SPEED = 10
+FLASH_LENGTH = 100
 # 2D arrays representing Tetris piece shapes
 SHAPES = {
     'I': [[1, 1, 1, 1]],

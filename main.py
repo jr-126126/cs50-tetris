@@ -5,7 +5,7 @@ import random
 import time
 from grid import Grid
 from pieces import Piece, get_random_piece, rotate_piece
-from const import FPS, GRID_WIDTH, GRID_HEIGHT, BLOCK, PLAY_AREA_X, PLAY_AREA_Y
+from const import FPS, GRID_WIDTH, GRID_HEIGHT, BLOCK, PLAY_AREA_X, PLAY_AREA_Y, FLASH_SPEED, FLASH_LENGTH
 
 start = time.time()
 
@@ -39,6 +39,10 @@ for color in block_colors:
    img = pygame.image.load(os.path.join("Assets", "Single Blocks", f"{color}.png"))
    blocks[color.lower()] = pygame.transform.scale(img, (BLOCK, BLOCK))
 
+# Ghost block TODO: line clear animation
+ghost_block = pygame.image.load(os.path.join("Assets", "Ghost", "Single.png"))
+ghost_block = pygame.transform.scale(ghost_block, (BLOCK, BLOCK))
+
 BLOCK_IMAGES = {
    'I': blocks['lightblue'],
    'O': blocks['yellow'],
@@ -57,20 +61,28 @@ game_board = pygame.transform.scale(board_image, (384, 704))
 
 
 
-def draw_grid(grid):
+def draw_grid(grid, full_rows=None, flash_visible=True):   # And full_rows parameter
      for row in range(GRID_HEIGHT):
           for col in range(GRID_WIDTH):
                if grid.get_cell(col, row) != 0:
                     piece_type = grid.get_cell(col, row)
                     x = PLAY_AREA_X + col * BLOCK
                     y = PLAY_AREA_Y + row * BLOCK
-                    WIN.blit(BLOCK_IMAGES[piece_type], (x, y))
 
-def draw_window(current_piece, grid):
+
+
+                    # If row full and animating draw ghost
+                    if full_rows and row in full_rows and flash_visible:
+                         WIN.blit(ghost_block, (x, y))
+                    else:
+                        piece_type = grid.get_cell(col, row)
+                        WIN.blit(BLOCK_IMAGES[piece_type], (x, y))
+
+def draw_window(current_piece, grid, full_rows, line_clear_delay, flash_visible):
             WIN.fill((0, 0, 0))  # Fill the window with black
             WIN.blit(game_board, (192, 0))  # Draw the game board
 
-            draw_grid(grid)  # Draw the locked pieces on the grid
+            draw_grid(grid, full_rows if line_clear_delay > 0 else None, flash_visible)  # Draw the locked pieces on the grid
 
             # Draw the current piece
             for row in range(len(current_piece.shape)):
@@ -78,7 +90,13 @@ def draw_window(current_piece, grid):
                     if current_piece.shape[row][col] == 1:
                         x = PLAY_AREA_X + (current_piece.x + col) * BLOCK
                         y = PLAY_AREA_Y + (current_piece.y + row) * BLOCK
-                        WIN.blit(current_piece.block_image, (x, y))
+
+
+                        piece_grid_y = current_piece.y + row
+                        if full_rows and line_clear_delay > 0 and piece_grid_y in full_rows:
+                             WIN.blit(ghost_block, (x, y))
+                        else:
+                            WIN.blit(current_piece.block_image,(x, y))
 
             
             pygame.display.update()  # Update the display  
@@ -113,9 +131,11 @@ def main():
     # Initialize the grid, a 2D array filled with zeros
     grid = Grid(GRID_WIDTH, GRID_HEIGHT)
 
+    # Piece speed variables
     fall_time = 0
     fall_speed = 500 # milliseconds
 
+    # DAS variables
     dt = 0 # Delta time for DAS
     das_delay = 100
     das_repeat = 50
@@ -123,12 +143,19 @@ def main():
     das_active = False
     last_key = None
 
+    # Line clear animation variables
+    line_clear_delay = 0 # line clear animation timer
+    full_rows = [] # store the rows that are full
+    flash_visible = True
+    flash_timer = 0
+
+
     piece_queue = [get_random_piece(BLOCK_IMAGES) for _ in range(5)] # Pre-generate 5 pieces
     current_piece = piece_queue.pop(0) # Get the next piece
     piece_queue.append(get_random_piece(BLOCK_IMAGES)) # Add a new random piece to the queue
 
 
-
+    # Clock and main game loop
     clock = pygame.time.Clock()
     run = True
     while run:
@@ -162,10 +189,15 @@ def main():
                      # Hard drop
                      while grid.is_valid_move(current_piece, dy=1):
                           current_piece.y += 1
+
+                     # Lock piece on hard drop     
                      grid.lock_piece(current_piece)
-                     lines = grid.clear_lines()
-                     current_piece = piece_queue.pop(0)
-                     piece_queue.append(get_random_piece(BLOCK_IMAGES))
+                     full_rows = grid.get_full_rows()
+                     if full_rows:
+                          line_clear_delay = FLASH_LENGTH # 
+                     else:
+                        current_piece = piece_queue.pop(0)
+                        piece_queue.append(get_random_piece(BLOCK_IMAGES))
 
                 elif event.key == pygame.K_UP:
                      # Rotate piece clockwise
@@ -183,17 +215,21 @@ def main():
         keys = pygame.key.get_pressed()
         if keys[pygame.K_DOWN]:
             current_fall_speed = 50  # Faster fall speed when down key is held  
+        if line_clear_delay <= 0:
+            if fall_time >= current_fall_speed:
+                if grid.is_valid_move(current_piece, dy=1):
+                    current_piece.y += 1
+                else:
+                    # Lock piece on soft drop
+                    grid.lock_piece(current_piece)
+                    full_rows = grid.get_full_rows()
+                    if full_rows:
+                        line_clear_delay = 300
+                    else:
+                        current_piece = piece_queue.pop(0)
+                        piece_queue.append(get_random_piece(BLOCK_IMAGES))
 
-        if fall_time >= current_fall_speed:
-            if grid.is_valid_move(current_piece, dy=1):
-                current_piece.y += 1
-            else:
-                grid.lock_piece(current_piece)
-                lines = grid.clear_lines()
-                current_piece = piece_queue.pop(0)
-                piece_queue.append(get_random_piece(BLOCK_IMAGES))
-
-            fall_time = 0
+                fall_time = 0
 
         # Handle held keys DAS
         keys = pygame.key.get_pressed()
@@ -216,9 +252,24 @@ def main():
                 das_active = False
                 das_timer = 0
          
-  
+        if line_clear_delay > 0:
+             line_clear_delay -= dt # count down
+             flash_timer += dt
 
-        draw_window(current_piece, grid)
+             if flash_timer >= FLASH_SPEED:
+                  flash_visible = not flash_visible
+                  flash_timer = 0
+                  
+
+             if line_clear_delay <= 0:
+                  grid.clear_rows(full_rows)
+                  full_rows = []
+                  flash_visible = True
+                  current_piece = piece_queue.pop(0)
+                  piece_queue.append(get_random_piece(BLOCK_IMAGES))
+        
+
+        draw_window(current_piece, grid, full_rows, line_clear_delay, flash_visible)
 
 
 
