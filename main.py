@@ -191,7 +191,7 @@ def main():
                 grid.lock_piece(current_piece)
                 lines = grid.clear_lines()
                 current_piece = piece_queue.pop(0)
-                piece_queue.append(get_random_piece())
+                piece_queue.append(get_random_piece(BLOCK_IMAGES))
 
             fall_time = 0
 
