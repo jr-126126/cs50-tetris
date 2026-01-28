@@ -5,7 +5,8 @@ import random
 import time
 from grid import Grid
 from pieces import Piece, get_random_piece, rotate_piece
-from const import FPS, GRID_WIDTH, GRID_HEIGHT, BLOCK, PLAY_AREA_X, PLAY_AREA_Y, FLASH_SPEED, FLASH_LENGTH
+from const import FPS, GRID_WIDTH, GRID_HEIGHT, BLOCK, PLAY_AREA_X, PLAY_AREA_Y, FLASH_SPEED, FLASH_LENGTH, LINES_PER_LEVEL
+from scoring import calculate_score
 
 start = time.time()
 
@@ -39,7 +40,7 @@ for color in block_colors:
    img = pygame.image.load(os.path.join("Assets", "Single Blocks", f"{color}.png"))
    blocks[color.lower()] = pygame.transform.scale(img, (BLOCK, BLOCK))
 
-# Ghost block TODO: line clear animation
+# Ghost block
 ghost_block = pygame.image.load(os.path.join("Assets", "Ghost", "Single.png"))
 ghost_block = pygame.transform.scale(ghost_block, (BLOCK, BLOCK))
 
@@ -61,7 +62,7 @@ game_board = pygame.transform.scale(board_image, (384, 704))
 
 
 
-def draw_grid(grid, full_rows=None, flash_visible=True):   # And full_rows parameter
+def draw_grid(grid, full_rows=None, flash_visible=True):  
      for row in range(GRID_HEIGHT):
           for col in range(GRID_WIDTH):
                if grid.get_cell(col, row) != 0:
@@ -131,10 +132,6 @@ def main():
     # Initialize the grid, a 2D array filled with zeros
     grid = Grid(GRID_WIDTH, GRID_HEIGHT)
 
-    # Piece speed variables
-    fall_time = 0
-    fall_speed = 500 # milliseconds
-
     # DAS variables
     dt = 0 # Delta time for DAS
     das_delay = 100
@@ -148,6 +145,17 @@ def main():
     full_rows = [] # store the rows that are full
     flash_visible = True
     flash_timer = 0
+
+    # Score and level variables
+    score = 0
+    level = 0
+    total_lines_cleared = 0
+
+    # fall speed variables
+    fall_time = 0
+    base_fall_speed = 500 # milliseconds
+    fall_speed = base_fall_speed
+
 
 
     piece_queue = [get_random_piece(BLOCK_IMAGES) for _ in range(5)] # Pre-generate 5 pieces
@@ -209,6 +217,14 @@ def main():
                     rotated_shape = rotate_piece(current_piece, clockwise=False)
                     try_rotation(current_piece, grid, rotated_shape)
 
+                # REMOVE OR HIDE FROM USER - CHEATS (cheat code in future maybe?)    
+                elif event.key == pygame.K_q:
+                    # DEBUG: Fill bottom 4 rows for testing
+                    for row in range(GRID_HEIGHT - 4, GRID_HEIGHT):
+                        for col in range(GRID_WIDTH):
+                            if grid.get_cell(col, row) == 0:  # Only fill empty cells
+                                grid.grid[row][col] = 'T'  # Fill with T piece type
+
                     
 
         current_fall_speed = fall_speed
@@ -262,14 +278,25 @@ def main():
                   
 
              if line_clear_delay <= 0:
-                  grid.clear_rows(full_rows)
-                  full_rows = []
+                  if full_rows:
+                        lines = grid.clear_rows(full_rows)
+
+                        score += calculate_score(lines, level)
+                        total_lines_cleared += lines
+
+                        level = total_lines_cleared // LINES_PER_LEVEL
+                        fall_speed = base_fall_speed - (level * 50) # Increase fall speed based on level
+                        fall_speed = max(50, fall_speed) # Limit max fallspeed
+                        full_rows = []
+
                   flash_visible = True
                   current_piece = piece_queue.pop(0)
                   piece_queue.append(get_random_piece(BLOCK_IMAGES))
+                  print(f"Score: {score} | Level: {level} | Lines: {total_lines_cleared}")
         
 
         draw_window(current_piece, grid, full_rows, line_clear_delay, flash_visible)
+        
 
 
 
