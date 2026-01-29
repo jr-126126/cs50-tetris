@@ -10,7 +10,7 @@ from scoring import calculate_score
 
 start = time.time()
 
-
+# Pygame init + debugging
 pygame.display.init()
 print("Pygame.display initialized")
 print(f"Runtime: {time.time() - start} seconds")
@@ -23,6 +23,10 @@ print(f"Runtime: {time.time() - start} seconds")
 # Encountered issue with joystick module not initializing with certain devices. Unplugging and replugging usb devices fixed it. (Pygame module issue, beyond me)
 pygame.joystick.init()
 print("Pygame.joystick initialized")
+print(f"Runtime: {time.time() - start} seconds")
+
+pygame.font.init()
+print("Pygame.font initialized")
 print(f"Runtime: {time.time() - start} seconds")
 
 WIDTH, HEIGHT = 768, 704
@@ -59,7 +63,36 @@ BLOCK_IMAGES = {
 board_image = pygame.image.load(os.path.join("Assets", "Board", "board.png"))
 game_board = pygame.transform.scale(board_image, (384, 704))
 
+# Load fonts for UI elements
+font_large = pygame.font.Font(os.path.join("Assets", "Fonts", "Press_Start_2P", "PressStart2P-Regular.ttf"), 20) # Labels
+font_small = pygame.font.Font(os.path.join("Assets", "Fonts", "Press_Start_2P", "PressStart2P-Regular.ttf"), 16) # Values
 
+
+def draw_ui(score, level, total_lines, font_large, font_small):
+    # UI positioning
+    ui_x = 20
+    ui_y = 450
+    spacing = 80
+
+    # Draw labels and values
+
+    # Score
+    score_label = font_large.render("SCORE", True, (255, 255, 255))
+    score_value = font_small.render(str(score), True, (255, 200, 0))
+    WIN.blit(score_label, (ui_x, ui_y))
+    WIN.blit(score_value, (ui_x, ui_y + 40))
+
+    # Level
+    level_label = font_large.render("LEVEL", True, (255, 255, 255))
+    level_value = font_small.render(str(level), True, (255, 200, 0))
+    WIN.blit(level_label, (ui_x, ui_y + spacing))
+    WIN.blit(level_value, (ui_x, ui_y + spacing + 40))
+
+    # Lines
+    lines_label = font_large.render("LINES", True, (255, 255, 255))
+    lines_value = font_small.render(str(total_lines), True, (255, 200, 0))
+    WIN.blit(lines_label, (ui_x, ui_y + spacing * 2))
+    WIN.blit(lines_value, (ui_x, ui_y + spacing * 2 + 40))
 
 
 def draw_grid(grid, full_rows=None, flash_visible=True):  
@@ -79,7 +112,7 @@ def draw_grid(grid, full_rows=None, flash_visible=True):
                         piece_type = grid.get_cell(col, row)
                         WIN.blit(BLOCK_IMAGES[piece_type], (x, y))
 
-def draw_window(current_piece, grid, full_rows, line_clear_delay, flash_visible):
+def draw_window(current_piece, grid, full_rows, line_clear_delay, flash_visible, score, level, total_lines):
             WIN.fill((0, 0, 0))  # Fill the window with black
             WIN.blit(game_board, (192, 0))  # Draw the game board
 
@@ -99,7 +132,8 @@ def draw_window(current_piece, grid, full_rows, line_clear_delay, flash_visible)
                         else:
                             WIN.blit(current_piece.block_image,(x, y))
 
-            
+            draw_ui(score, level, total_lines, font_large, font_small)
+
             pygame.display.update()  # Update the display  
 
 
@@ -156,7 +190,7 @@ def main():
     base_fall_speed = 500 # milliseconds
     fall_speed = base_fall_speed
 
-
+    
 
     piece_queue = [get_random_piece(BLOCK_IMAGES) for _ in range(5)] # Pre-generate 5 pieces
     current_piece = piece_queue.pop(0) # Get the next piece
@@ -242,8 +276,14 @@ def main():
                     if full_rows:
                         line_clear_delay = 300
                     else:
-                        current_piece = piece_queue.pop(0)
+                        current_piece = piece_queue.pop(0) # Spawn new piece
                         piece_queue.append(get_random_piece(BLOCK_IMAGES))
+                    
+                    # If new piece spawns in occupied grid spaces - game over
+                    if not grid.is_valid_move(current_piece):
+                        print("GAME OVER!")
+                        run = False
+                    
 
                 fall_time = 0
 
@@ -268,10 +308,12 @@ def main():
                 das_active = False
                 das_timer = 0
          
+         # Start animation timer
         if line_clear_delay > 0:
              line_clear_delay -= dt # count down
              flash_timer += dt
 
+            
              if flash_timer >= FLASH_SPEED:
                   flash_visible = not flash_visible
                   flash_timer = 0
@@ -292,10 +334,13 @@ def main():
                   flash_visible = True
                   current_piece = piece_queue.pop(0)
                   piece_queue.append(get_random_piece(BLOCK_IMAGES))
+                  if not grid.is_valid_move(current_piece):
+                      print("GAME OVER")
+                      run = False
                   print(f"Score: {score} | Level: {level} | Lines: {total_lines_cleared}")
         
 
-        draw_window(current_piece, grid, full_rows, line_clear_delay, flash_visible)
+        draw_window(current_piece, grid, full_rows, line_clear_delay, flash_visible, score, level, total_lines_cleared)
         
 
 
