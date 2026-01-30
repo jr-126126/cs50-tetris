@@ -2,6 +2,9 @@
 FPS = 60
 BLOCK = 32
 
+#Soft drop speed
+S_D_SPEED = 20
+
 # Grid and play area
 GRID_WIDTH = 10
 GRID_HEIGHT = 20
