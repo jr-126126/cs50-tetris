@@ -67,6 +67,98 @@ game_board = pygame.transform.scale(board_image, (384, 704))
 font_large = pygame.font.Font(os.path.join("Assets", "Fonts", "Press_Start_2P", "PressStart2P-Regular.ttf"), 20) # Labels
 font_small = pygame.font.Font(os.path.join("Assets", "Fonts", "Press_Start_2P", "PressStart2P-Regular.ttf"), 16) # Values
 
+def draw_menu(font_large, font_small):
+    WIN.fill((0, 0, 0))
+
+    # Title
+    title = font_large.render("TETRIS", True, (255, 255, 255))
+    title_rect = title.get_rect(center=(WIDTH // 2, HEIGHT // 3))
+    WIN.blit(title, title_rect)
+
+    # Instructions
+    start_text = font_small.render("PRESS SPACE TO START", True, (255, 200, 0))
+    start_rect = start_text.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+    WIN.blit(start_text, start_rect)
+
+    # Controls
+    controls_y = HEIGHT // 2 + 80
+    controls = [
+        "ARROWS - Move",
+        "UP - Rotate",
+        "Z - Rotate CCW",
+        "C - Hold Piece",
+        "SPACE - Hard Drop"
+    ]
+
+    for i, text in enumerate(controls):
+        control_text = font_small.render(text, True, (180, 180, 180))
+        control_rect = control_text.get_rect(center=(WIDTH // 2, controls_y + i * 30))
+        WIN.blit(control_text, control_rect)
+    pygame.display.update()
+
+def draw_game_over(score, level, total_lines, font_large, font_small):
+    # semi-transparent overlay
+    overlay = pygame.Surface((WIDTH, HEIGHT))
+    overlay.set_alpha(200)
+    overlay.fill((0, 0, 0))
+    WIN.blit(overlay, (0, 0))
+
+    # Game over text
+    game_over_text = font_large.render("GAME OVER", True, (255, 0, 0))
+    game_over_rect = game_over_text.get_rect(center=(WIDTH // 2, HEIGHT // 3))
+    WIN.blit(game_over_text, game_over_rect)
+
+    # Final stats
+    stats_y = HEIGHT // 2
+    score_text = font_small.render(f"SCORE: {score}", True, (255, 255, 255))
+    level_text = font_small.render(f"LEVEL: {level}", True, (255, 255, 255))
+    lines_text = font_small.render(f"LINES: {total_lines}", True, (255, 255, 255))
+    
+    WIN.blit(score_text, score_text.get_rect(center=(WIDTH // 2, stats_y)))
+    WIN.blit(level_text, level_text.get_rect(center=(WIDTH // 2, stats_y + 40)))
+    WIN.blit(lines_text, lines_text.get_rect(center=(WIDTH // 2, stats_y + 80)))
+
+    # Restart prompt
+    restart_text = font_small.render("PRESS R TO RESTART", True, (255, 200, 0))
+    restart_rect = restart_text.get_rect(center=(WIDTH // 2, HEIGHT - 100))
+    WIN.blit(restart_text, restart_rect)
+
+    pygame.display.update()
+
+def reset_game():
+    grid = Grid(GRID_WIDTH, GRID_HEIGHT)
+    
+    fall_time = 0
+    dt = 0
+    das_delay = 100
+    das_repeat = 50
+    das_timer = 0
+    das_active = False
+    last_key = None
+    
+    line_clear_delay = 0
+    full_rows = []
+    flash_visible = True
+    flash_timer = 0
+    
+    score = 0
+    level = 0
+    total_lines_cleared = 0
+    
+    base_fall_speed = 500
+    fall_speed = base_fall_speed
+    
+    held_piece = None
+    can_swap = True
+    
+    piece_queue = [get_random_piece(BLOCK_IMAGES) for _ in range(5)]
+    current_piece = piece_queue.pop(0)
+    piece_queue.append(get_random_piece(BLOCK_IMAGES))
+    
+    return (grid, fall_time, dt, das_delay, das_repeat, das_timer, das_active, last_key,
+            line_clear_delay, full_rows, flash_visible, flash_timer, score, level, 
+            total_lines_cleared, base_fall_speed, fall_speed, held_piece, can_swap, 
+            piece_queue, current_piece)
 
 def draw_ui(score, level, total_lines, font_large, font_small):
     # UI positioning
@@ -107,6 +199,37 @@ def draw_held_piece(held_piece, font_large):
                         x = 20 + col * BLOCK
                         y = 100 + row * BLOCK
                         WIN.blit(held_piece.block_image, (x, y))
+
+def draw_ghost_piece(current_piece, grid):
+    # Find where piece will land
+    ghost_y = current_piece.y
+    while True:
+        # Keep moving down until it would collide
+        test_y = ghost_y + 1
+        valid = True
+        for row in range(len(current_piece.shape)):
+            for col in range(len(current_piece.shape[row])):
+                if current_piece.shape[row][col] == 1:
+                    new_y = test_y + row
+                    new_x = current_piece.x + col
+                    if new_y >= GRID_HEIGHT or (new_y >= 0 and grid.get_cell(new_x, new_y) != 0):
+                        valid = False
+                        break
+            if not valid:
+                break
+        
+        if valid:
+            ghost_y = test_y
+        else:
+            break
+    
+    # Draw ghost piece at landing position
+    for row in range(len(current_piece.shape)):
+        for col in range(len(current_piece.shape[row])):
+            if current_piece.shape[row][col] == 1:
+                x = PLAY_AREA_X + (current_piece.x + col) * BLOCK
+                y = PLAY_AREA_Y + (ghost_y + row) * BLOCK
+                pygame.draw.rect(WIN, (255, 255, 255), (x, y, BLOCK, BLOCK), 1)
 
 def draw_piece_queue(piece_queue, font_large):
     # Draw "NEXT" label
@@ -153,6 +276,9 @@ def draw_window(current_piece, grid, full_rows, line_clear_delay,
             WIN.blit(game_board, (192, 0))  # Draw the game board
 
             draw_grid(grid, full_rows if line_clear_delay > 0 else None, flash_visible)  # Draw the locked pieces on the grid
+
+            
+            draw_ghost_piece(current_piece, grid)
 
             # Draw the current piece
             for row in range(len(current_piece.shape)):
@@ -201,39 +327,36 @@ def try_rotation(piece, grid, rotated_shape):
 
 def main():
 
-    # Initialize the grid, a 2D array filled with zeros
-    grid = Grid(GRID_WIDTH, GRID_HEIGHT)
+    # Game states
+    MENU = 0
+    PLAYING = 1
+    GAME_OVER = 2
 
-    # DAS variables
-    dt = 0 # Delta time for DAS
-    das_delay = 100
-    das_repeat = 50
-    das_timer = 0
-    das_active = False
-    last_key = None
+    game_state = MENU
 
-    # Line clear animation variables
-    line_clear_delay = 0 # line clear animation timer
-    full_rows = [] # store the rows that are full
-    flash_visible = True
-    flash_timer = 0
-
-    # Score and level variables
+# Initialize to None - will be set when game starts
+    grid = None
+    current_piece = None
     score = 0
     level = 0
     total_lines_cleared = 0
-
-    # fall speed variables
-    fall_time = 0
-    base_fall_speed = 500 # milliseconds
-    fall_speed = base_fall_speed
-
     held_piece = None
+    piece_queue = []
+    fall_time = 0
+    dt = 0
+    das_timer = 0
+    das_active = False
+    last_key = None
+    line_clear_delay = 0
+    full_rows = []
+    flash_visible = True
+    flash_timer = 0
     can_swap = True
+    base_fall_speed = 500
+    fall_speed = 500
+    current_fall_speed = 500
 
-    piece_queue = [get_random_piece(BLOCK_IMAGES) for _ in range(5)] # Pre-generate 5 pieces
-    current_piece = piece_queue.pop(0) # Get the next piece
-    piece_queue.append(get_random_piece(BLOCK_IMAGES)) # Add a new random piece to the queue
+   
 
 
     # Clock and main game loop
@@ -241,77 +364,191 @@ def main():
     run = True
     while run:
         clock.tick(FPS)
-        fall_time += clock.get_rawtime()
 
-        dt = clock.get_rawtime() # Delta time in milliseconds
+        if game_state == MENU:
+            draw_menu(font_large, font_small)
 
-        # Loop through the event queue
-        for event in pygame.event.get():
-            # Check for quit event
-            if event.type == pygame.QUIT:
-                run = False
+             # Loop through the event queue
+            for event in pygame.event.get():
+                # Check for quit event
+                if event.type == pygame.QUIT:
+                    run = False
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE :
+                     # Start new game
+                    (grid, fall_time, dt, das_delay, das_repeat, das_timer, das_active, last_key,
+                     line_clear_delay, full_rows, flash_visible, flash_timer, score, level,
+                     total_lines_cleared, base_fall_speed, fall_speed, held_piece, can_swap,
+                     piece_queue, current_piece) = reset_game()
+                    game_state = PLAYING
 
-            # Handle initial key press
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_LEFT:
-                    if grid.is_valid_move(current_piece, dx=-1):
-                        current_piece.x -= 1
-                        last_key = pygame.K_LEFT
-                        das_timer = 0
-                        das_active = False
-                elif event.key == pygame.K_RIGHT:
-                    if grid.is_valid_move(current_piece, dx=1):
-                        current_piece.x += 1
-                        last_key = pygame.K_RIGHT
-                        das_timer = 0
-                        das_active = False
+        elif game_state == GAME_OVER:
+            draw_game_over(score, level, total_lines_cleared, font_large, font_small)
 
-                elif event.key == pygame.K_SPACE:
-                     # Hard drop
-                     while grid.is_valid_move(current_piece, dy=1):
-                          current_piece.y += 1
+            # Loop through the event queue
+            for event in pygame.event.get():
+                # Check for quit event
+                if event.type == pygame.QUIT:
+                    run = False
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+                     # Start new game
+                    (grid, fall_time, dt, das_delay, das_repeat, das_timer, das_active, last_key,
+                     line_clear_delay, full_rows, flash_visible, flash_timer, score, level,
+                     total_lines_cleared, base_fall_speed, fall_speed, held_piece, can_swap,
+                     piece_queue, current_piece) = reset_game()
+                    game_state = PLAYING
+        
+        elif game_state == PLAYING:
 
-                     # Lock piece on hard drop     
-                     grid.lock_piece(current_piece)
-                     full_rows = grid.get_full_rows()
-                     can_swap = True # Reset ability to hold when locking a piece
-                     if full_rows:
-                          line_clear_delay = FLASH_LENGTH # 
-                     else:
-                        current_piece = piece_queue.pop(0)
-                        piece_queue.append(get_random_piece(BLOCK_IMAGES))
+            fall_time += clock.get_rawtime()
+            dt = clock.get_rawtime() # Delta time in milliseconds
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    run = False
+                # Handle initial key press
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_LEFT:
+                        if grid.is_valid_move(current_piece, dx=-1):
+                            current_piece.x -= 1
+                            last_key = pygame.K_LEFT
+                            das_timer = 0
+                            das_active = False
+                    elif event.key == pygame.K_RIGHT:
+                        if grid.is_valid_move(current_piece, dx=1):
+                            current_piece.x += 1
+                            last_key = pygame.K_RIGHT
+                            das_timer = 0
+                            das_active = False
 
-                elif event.key == pygame.K_UP:
-                     # Rotate piece clockwise
-                     rotated_shape = rotate_piece(current_piece, clockwise=True)
-                     try_rotation(current_piece, grid, rotated_shape)
-                
-                elif event.key == pygame.K_z:
-                    # Rotate piece counter-clockwise
-                    rotated_shape = rotate_piece(current_piece, clockwise=False)
-                    try_rotation(current_piece, grid, rotated_shape)
+                    elif event.key == pygame.K_SPACE:
+                        # Hard drop
+                        while grid.is_valid_move(current_piece, dy=1):
+                            current_piece.y += 1
 
-
-                elif event.key == pygame.K_c: # Hotkey for 'hold'
-                    if can_swap:
-                        # If no held piece
-                        if held_piece is None:
-                            # Move current piece to held, get a new piece.
-                            held_piece = current_piece
+                        # Lock piece on hard drop     
+                        grid.lock_piece(current_piece)
+                        full_rows = grid.get_full_rows()
+                        can_swap = True # Reset ability to hold when locking a piece
+                        if full_rows:
+                            line_clear_delay = FLASH_LENGTH # 
+                        else:
                             current_piece = piece_queue.pop(0)
                             piece_queue.append(get_random_piece(BLOCK_IMAGES))
-                        # If held piece
+
+                    elif event.key == pygame.K_UP:
+                        # Rotate piece clockwise
+                        rotated_shape = rotate_piece(current_piece, clockwise=True)
+                        try_rotation(current_piece, grid, rotated_shape)
+                    
+                    elif event.key == pygame.K_z:
+                        # Rotate piece counter-clockwise
+                        rotated_shape = rotate_piece(current_piece, clockwise=False)
+                        try_rotation(current_piece, grid, rotated_shape)
+
+
+                    elif event.key == pygame.K_c: # Hotkey for 'hold'
+                        if can_swap:
+                            # If no held piece
+                            if held_piece is None:
+                                # Move current piece to held, get a new piece.
+                                held_piece = current_piece
+                                current_piece = piece_queue.pop(0)
+                                piece_queue.append(get_random_piece(BLOCK_IMAGES))
+                            # If held piece
+                            else:
+                                # Swap current with held
+                                temp = current_piece
+                                current_piece = held_piece
+                                held_piece = temp
+
+                                # reset pos
+                                current_piece.x = GRID_WIDTH // 2 - len(current_piece.shape[0]) // 2
+                                current_piece.y = 0
+
+                            can_swap = False
+            
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_DOWN]:
+                current_fall_speed = S_D_SPEED  # Faster fall speed when down key is held  
+            else:
+                current_fall_speed = fall_speed
+            if line_clear_delay <= 0:
+                if fall_time >= current_fall_speed:
+                    if grid.is_valid_move(current_piece, dy=1):
+                        current_piece.y += 1
+                    else:
+                        # Lock piece on soft drop
+                        grid.lock_piece(current_piece)
+                        full_rows = grid.get_full_rows()
+                        can_swap = True # Reset ability to hold when locking a piece
+                        if full_rows:
+                            line_clear_delay = 300
                         else:
-                            # Swap current with held
-                            temp = current_piece
-                            current_piece = held_piece
-                            held_piece = temp
+                            current_piece = piece_queue.pop(0) # Spawn new piece
+                            piece_queue.append(get_random_piece(BLOCK_IMAGES))
+                        
+                        # If new piece spawns in occupied grid spaces - game over
+                        if not grid.is_valid_move(current_piece):
+                            print("GAME OVER!")
+                            game_state = GAME_OVER
+                        
 
-                            # reset pos
-                            current_piece.x = GRID_WIDTH // 2 - len(current_piece.shape[0]) // 2
-                            current_piece.y = 0
+                    fall_time = 0
 
-                        can_swap = False
+            # Handle held keys DAS
+            keys = pygame.key.get_pressed()
+            if last_key in (pygame.K_LEFT, pygame.K_RIGHT):
+                if keys[last_key]:
+                    das_timer += dt
+                    if not das_active and das_timer >= das_delay:
+                        das_active = True
+                        das_timer = 0
+                    if das_active and das_timer >= das_repeat:
+                        if last_key == pygame.K_LEFT:
+                            if grid.is_valid_move(current_piece, dx=-1):
+                                current_piece.x -= 1
+                        elif last_key == pygame.K_RIGHT:
+                            if grid.is_valid_move(current_piece, dx=1):
+                                current_piece.x += 1
+                        das_timer = 0
+                else:
+                    last_key = None
+                    das_active = False
+                    das_timer = 0
+            
+            # Start animation timer
+            if line_clear_delay > 0:
+                line_clear_delay -= dt # count down
+                flash_timer += dt
+
+                
+                if flash_timer >= FLASH_SPEED:
+                    flash_visible = not flash_visible
+                    flash_timer = 0
+                    
+
+                if line_clear_delay <= 0:
+                    if full_rows:
+                            lines = grid.clear_rows(full_rows)
+
+                            score += calculate_score(lines, level)
+                            total_lines_cleared += lines
+
+                            level = total_lines_cleared // LINES_PER_LEVEL
+                            fall_speed = base_fall_speed - (level * 50) # Increase fall speed based on level
+                            fall_speed = max(50, fall_speed) # Limit max fallspeed
+                            full_rows = []
+
+                    flash_visible = True
+                    current_piece = piece_queue.pop(0)
+                    piece_queue.append(get_random_piece(BLOCK_IMAGES))
+                    if not grid.is_valid_move(current_piece):
+                        print("GAME OVER")
+                        run = False
+                    print(f"Score: {score} | Level: {level} | Lines: {total_lines_cleared}")
+            
+
+            draw_window(current_piece, grid, full_rows, line_clear_delay,
+                        flash_visible, score, level, total_lines_cleared, held_piece, piece_queue)
 
                         
                             
@@ -326,88 +563,15 @@ def main():
 
                     
 
-        current_fall_speed = fall_speed
-        keys = pygame.key.get_pressed()
-        if keys[pygame.K_DOWN]:
-            current_fall_speed = S_D_SPEED  # Faster fall speed when down key is held  
-        if line_clear_delay <= 0:
-            if fall_time >= current_fall_speed:
-                if grid.is_valid_move(current_piece, dy=1):
-                    current_piece.y += 1
-                else:
-                    # Lock piece on soft drop
-                    grid.lock_piece(current_piece)
-                    full_rows = grid.get_full_rows()
-                    can_swap = True # Reset ability to hold when locking a piece
-                    if full_rows:
-                        line_clear_delay = 300
-                    else:
-                        current_piece = piece_queue.pop(0) # Spawn new piece
-                        piece_queue.append(get_random_piece(BLOCK_IMAGES))
-                    
-                    # If new piece spawns in occupied grid spaces - game over
-                    if not grid.is_valid_move(current_piece):
-                        print("GAME OVER!")
-                        run = False
-                    
 
-                fall_time = 0
 
-        # Handle held keys DAS
-        keys = pygame.key.get_pressed()
-        if last_key in (pygame.K_LEFT, pygame.K_RIGHT):
-            if keys[last_key]:
-                das_timer += dt
-                if not das_active and das_timer >= das_delay:
-                    das_active = True
-                    das_timer = 0
-                if das_active and das_timer >= das_repeat:
-                    if last_key == pygame.K_LEFT:
-                        if grid.is_valid_move(current_piece, dx=-1):
-                            current_piece.x -= 1
-                    elif last_key == pygame.K_RIGHT:
-                        if grid.is_valid_move(current_piece, dx=1):
-                            current_piece.x += 1
-                    das_timer = 0
-            else:
-                last_key = None
-                das_active = False
-                das_timer = 0
-         
-         # Start animation timer
-        if line_clear_delay > 0:
-             line_clear_delay -= dt # count down
-             flash_timer += dt
+
+
+
+
+
 
             
-             if flash_timer >= FLASH_SPEED:
-                  flash_visible = not flash_visible
-                  flash_timer = 0
-                  
-
-             if line_clear_delay <= 0:
-                  if full_rows:
-                        lines = grid.clear_rows(full_rows)
-
-                        score += calculate_score(lines, level)
-                        total_lines_cleared += lines
-
-                        level = total_lines_cleared // LINES_PER_LEVEL
-                        fall_speed = base_fall_speed - (level * 50) # Increase fall speed based on level
-                        fall_speed = max(50, fall_speed) # Limit max fallspeed
-                        full_rows = []
-
-                  flash_visible = True
-                  current_piece = piece_queue.pop(0)
-                  piece_queue.append(get_random_piece(BLOCK_IMAGES))
-                  if not grid.is_valid_move(current_piece):
-                      print("GAME OVER")
-                      run = False
-                  print(f"Score: {score} | Level: {level} | Lines: {total_lines_cleared}")
-        
-
-        draw_window(current_piece, grid, full_rows, line_clear_delay,
-                     flash_visible, score, level, total_lines_cleared, held_piece, piece_queue)
         
 
 
