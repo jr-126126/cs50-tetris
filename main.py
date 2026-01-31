@@ -29,6 +29,8 @@ pygame.font.init()
 print("Pygame.font initialized")
 print(f"Runtime: {time.time() - start} seconds")
 
+pygame.mixer.music.load(os.path.join("Assets", "Music", "Tetris_normal.mp3"))
+
 WIDTH, HEIGHT = 768, 704
 WIN = pygame.display.set_mode((WIDTH, HEIGHT))
 
@@ -66,6 +68,10 @@ game_board = pygame.transform.scale(board_image, (384, 704))
 # Load fonts for UI elements
 font_large = pygame.font.Font(os.path.join("Assets", "Fonts", "Press_Start_2P", "PressStart2P-Regular.ttf"), 20) # Labels
 font_small = pygame.font.Font(os.path.join("Assets", "Fonts", "Press_Start_2P", "PressStart2P-Regular.ttf"), 16) # Values
+
+line_clear_sound = pygame.mixer.Sound(os.path.join("Assets", "Sounds", "tetris_line_clear.wav"))
+line_clear_sound.set_volume(0.1)
+
 
 def draw_menu(font_large, font_small):
     WIN.fill((0, 0, 0))
@@ -150,6 +156,7 @@ def reset_game():
     
     held_piece = None
     can_swap = True
+
     
     piece_queue = [get_random_piece(BLOCK_IMAGES) for _ in range(5)]
     current_piece = piece_queue.pop(0)
@@ -355,6 +362,11 @@ def main():
     base_fall_speed = 500
     fall_speed = 500
     current_fall_speed = 500
+    current_track = None
+
+    pending_music_change = None
+
+    pygame.mixer.music.set_endevent(pygame.USEREVENT + 1)
 
    
 
@@ -379,6 +391,14 @@ def main():
                      line_clear_delay, full_rows, flash_visible, flash_timer, score, level,
                      total_lines_cleared, base_fall_speed, fall_speed, held_piece, can_swap,
                      piece_queue, current_piece) = reset_game()
+                    
+
+                    # Start music (normal)
+                    pygame.mixer.music.load(os.path.join("Assets", "Music", "Tetris_normal.mp3"))
+                    pygame.mixer.music.play(0)
+                    current_track = "normal"
+
+
                     game_state = PLAYING
 
         elif game_state == GAME_OVER:
@@ -395,6 +415,12 @@ def main():
                      line_clear_delay, full_rows, flash_visible, flash_timer, score, level,
                      total_lines_cleared, base_fall_speed, fall_speed, held_piece, can_swap,
                      piece_queue, current_piece) = reset_game()
+                    
+                    # Start music (normal)
+                    pygame.mixer.music.load(os.path.join("Assets", "Music", "Tetris_normal.mp3"))
+                    pygame.mixer.music.play(0)  # Play once
+                    current_track = "normal"
+                    
                     game_state = PLAYING
         
         elif game_state == PLAYING:
@@ -404,15 +430,31 @@ def main():
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     run = False
+
+                # Check if music track finished
+                if event.type == pygame.USEREVENT + 1:
+                    print("Music end event fired!")
+                    if pending_music_change:
+                        print(f"Switching to {pending_music_change}")
+                        pygame.mixer.music.load(os.path.join("Assets", "Music", f"Tetris_{pending_music_change}.mp3"))
+                        pygame.mixer.music.play(0)  # Play once
+                        current_track = pending_music_change
+                        pending_music_change = None
+                    else:
+                        # No change pending - just loop the current track
+                        print(f"Looping {current_track}")
+                        pygame.mixer.music.play(0)  # Restart the same track
+
+                
                 # Handle initial key press
                 if event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_LEFT:
+                    if event.key == pygame.K_LEFT: # Move left
                         if grid.is_valid_move(current_piece, dx=-1):
                             current_piece.x -= 1
                             last_key = pygame.K_LEFT
                             das_timer = 0
                             das_active = False
-                    elif event.key == pygame.K_RIGHT:
+                    elif event.key == pygame.K_RIGHT: # Move right
                         if grid.is_valid_move(current_piece, dx=1):
                             current_piece.x += 1
                             last_key = pygame.K_RIGHT
@@ -429,6 +471,7 @@ def main():
                         full_rows = grid.get_full_rows()
                         can_swap = True # Reset ability to hold when locking a piece
                         if full_rows:
+                            line_clear_sound.play()
                             line_clear_delay = FLASH_LENGTH # 
                         else:
                             current_piece = piece_queue.pop(0)
@@ -443,6 +486,15 @@ def main():
                         # Rotate piece counter-clockwise
                         rotated_shape = rotate_piece(current_piece, clockwise=False)
                         try_rotation(current_piece, grid, rotated_shape)
+
+                    
+                    # REMOVE OR HIDE FROM USER - CHEATS (cheat code in future maybe?)    
+                    elif event.key == pygame.K_q:
+                        # DEBUG: Fill bottom 4 rows for testing
+                        for row in range(GRID_HEIGHT - 4, GRID_HEIGHT):
+                            for col in range(GRID_WIDTH):
+                                if grid.get_cell(col, row) == 0:  # Only fill empty cells
+                                        grid.grid[row][col] = 'T'  # Fill with T piece type
 
 
                     elif event.key == pygame.K_c: # Hotkey for 'hold'
@@ -464,7 +516,12 @@ def main():
                                 current_piece.x = GRID_WIDTH // 2 - len(current_piece.shape[0]) // 2
                                 current_piece.y = 0
 
+
                             can_swap = False
+
+                            
+
+
             
             keys = pygame.key.get_pressed()
             if keys[pygame.K_DOWN]:
@@ -481,7 +538,8 @@ def main():
                         full_rows = grid.get_full_rows()
                         can_swap = True # Reset ability to hold when locking a piece
                         if full_rows:
-                            line_clear_delay = 300
+                            line_clear_sound.play()
+                            line_clear_delay = FLASH_LENGTH
                         else:
                             current_piece = piece_queue.pop(0) # Spawn new piece
                             piece_queue.append(get_random_piece(BLOCK_IMAGES))
@@ -490,6 +548,7 @@ def main():
                         if not grid.is_valid_move(current_piece):
                             print("GAME OVER!")
                             game_state = GAME_OVER
+                            pygame.mixer.music.stop
                         
 
                     fall_time = 0
@@ -519,6 +578,7 @@ def main():
             if line_clear_delay > 0:
                 line_clear_delay -= dt # count down
                 flash_timer += dt
+                
 
                 
                 if flash_timer >= FLASH_SPEED:
@@ -533,10 +593,22 @@ def main():
                             score += calculate_score(lines, level)
                             total_lines_cleared += lines
 
+                            old_level = level
                             level = total_lines_cleared // LINES_PER_LEVEL
                             fall_speed = base_fall_speed - (level * 50) # Increase fall speed based on level
                             fall_speed = max(50, fall_speed) # Limit max fallspeed
                             full_rows = []
+
+                            # Check if level changed and update music
+                            if level != old_level:
+                                print(f"Level changed from {old_level} to {level}")  # Debug
+                                if level == 5:
+                                    pending_music_change = "fast"
+                                    print("Flagged music change to FAST")  # Debug
+                                elif level == 10:
+                                    pending_music_change = "fastest"
+                                    print("Flagged music change to FASTEST")  # Debug
+                        
 
                     flash_visible = True
                     current_piece = piece_queue.pop(0)
@@ -550,31 +622,7 @@ def main():
             draw_window(current_piece, grid, full_rows, line_clear_delay,
                         flash_visible, score, level, total_lines_cleared, held_piece, piece_queue)
 
-                        
-                            
-
-                # REMOVE OR HIDE FROM USER - CHEATS (cheat code in future maybe?)    
-               # elif event.key == pygame.K_q:
-                #    # DEBUG: Fill bottom 4 rows for testing
-                #    for row in range(GRID_HEIGHT - 4, GRID_HEIGHT):
-                #        for col in range(GRID_WIDTH):
-                #            if grid.get_cell(col, row) == 0:  # Only fill empty cells
-                #                grid.grid[row][col] = 'T'  # Fill with T piece type
-
-                    
-
-
-
-
-
-
-
-
-
             
-        
-
-
 
     pygame.quit()
 
