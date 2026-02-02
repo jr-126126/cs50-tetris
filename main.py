@@ -489,12 +489,12 @@ def main():
 
                     
                     # REMOVE OR HIDE FROM USER - CHEATS (cheat code in future maybe?)    
-                    elif event.key == pygame.K_q:
-                        # DEBUG: Fill bottom 4 rows for testing
-                        for row in range(GRID_HEIGHT - 4, GRID_HEIGHT):
-                            for col in range(GRID_WIDTH):
-                                if grid.get_cell(col, row) == 0:  # Only fill empty cells
-                                        grid.grid[row][col] = 'T'  # Fill with T piece type
+                   # elif event.key == pygame.K_q:
+                    #    # DEBUG: Fill bottom 4 rows for testing
+                        #for row in range(GRID_HEIGHT - 4, GRID_HEIGHT):
+                            #for col in range(GRID_WIDTH):
+                                #if grid.get_cell(col, row) == 0:  # Only fill empty cells
+                                       # grid.grid[row][col] = 'T'  # Fill with T piece type
 
 
                     elif event.key == pygame.K_c: # Hotkey for 'hold'
