@@ -414,7 +414,7 @@ def main():
                     (grid, fall_time, dt, das_delay, das_repeat, das_timer, das_active, last_key,
                      line_clear_delay, full_rows, flash_visible, flash_timer, score, level,
                      total_lines_cleared, base_fall_speed, fall_speed, held_piece, can_swap,
-                     piece_queue, current_piece) = reset_game()
+                     piece_queue, current_piece) = reset_game() # Help
                     
                     # Start music (normal)
                     pygame.mixer.music.load(os.path.join("Assets", "Music", "Tetris_normal.mp3"))
@@ -489,12 +489,12 @@ def main():
 
                     
                     # REMOVE OR HIDE FROM USER - CHEATS (cheat code in future maybe?)    
-                   # elif event.key == pygame.K_q:
-                    #    # DEBUG: Fill bottom 4 rows for testing
-                        #for row in range(GRID_HEIGHT - 4, GRID_HEIGHT):
-                            #for col in range(GRID_WIDTH):
-                                #if grid.get_cell(col, row) == 0:  # Only fill empty cells
-                                       # grid.grid[row][col] = 'T'  # Fill with T piece type
+                    elif event.key == pygame.K_q:
+                        # DEBUG: Fill bottom 4 rows for testing
+                        for row in range(GRID_HEIGHT - 4, GRID_HEIGHT):
+                             for col in range(GRID_WIDTH):
+                                if grid.get_cell(col, row) == 0:  # Only fill empty cells
+                                        grid.grid[row][col] = 'T'  # Fill with T piece type
 
 
                     elif event.key == pygame.K_c: # Hotkey for 'hold'
