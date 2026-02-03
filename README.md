@@ -2,7 +2,7 @@
 CS50 Final Project - Tetris
 
 ## Demo Video
-https://www.youtube.com/watch?v=X4ppzJfs32Q
+https://www.youtube.com/watch?v=rgUQbwz1_z8
 
 ## Description
 A recreation of Tetris, in the style of NES tetris with a few extra modern features.
@@ -49,7 +49,7 @@ python main.py
 Game board is as a 10x20 2D array where '0' represents empty cells. '1's Represent occupied cells. This modular design helps simplify collision, line clearing, rotation and other important game elements.
 
 ### Piece Representation
-Pieces are defined as 2D matrices in the 'SHAPES' dictionary. Pieces also have a class that stores it's shape, position and associated asset(piece colour). A single block asset is loaded based on piece shape, each '1' of the shape is filled with the approiate coloured block.
+Pieces are defined as 2D matrices in the 'SHAPES' dictionary. Pieces also have a class that stores it's shape, position and associated asset(piece colour). A single block asset is loaded based on piece shape, each '1' of the shape is filled with the appropriate coloured block.
 
 ### Movement System (DAS)
 Implements Delayed Auto Shift (DAS) to replicate NES Tetris control style:
@@ -60,7 +60,7 @@ Implements Delayed Auto Shift (DAS) to replicate NES Tetris control style:
 Creates movement system that rewards tapping quickly for speed - whilst this can feel somewhat jank, it encapsulates the old-school NES feel.
 
 ### Piece Queue & Hold System
-***Queue:** Pre-generates 5 pieces using random.choice(), when a piece is moved to the current piece add a new random piece to the queue.
+**Queue:** Pre-generates 5 pieces using random.choice(), when a piece is moved to the current piece add a new random piece to the queue.
 
 **Hold:** Stores a single piece that can be swapped with the current piece. Limited to one swap per piece. Temp variable is used when held piece variable and current piece are stored.
 
@@ -89,7 +89,9 @@ Uses 'pygame.mixer.music.set_endevent()' to detect track completion and switch t
 
 ## Challenges
 **Event Loop Management:** Implementing game states required refactoring the main game loop. Dealing with indentation and scope was difficult
+
 **Asset Dependencies:** Many functions require loaded assets (images, fonts, sounds). Balancing organisation wiith asset scope/accessiblity proved challenging.
+
 **Pygame Init Issues:** Encountered conflicts with joystick module, individual module init to debug took a while. Managed to find a work around eventually.
 
 
